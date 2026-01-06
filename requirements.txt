@@ -3,7 +3,7 @@ plexapi
 PyYAML
 requests
 Pillow
-mediapipe
+mediapipe == 0.10.5
 numpy
 opencv-python
 croniter
