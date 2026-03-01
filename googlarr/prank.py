@@ -32,13 +32,13 @@ def generate_prank_poster(original_path, prank_path, config):
     img_bgr = cv2.imread(original_path)
     if img_bgr is None:
         print(f"[PRANK] Failed to read image: {original_path}")
-        return
+        raise ValueError(f"Failed to read image: {original_path}")
 
     # Detect eyes using face detector
     eye_locations = face_detector.detect_eyes(img_bgr, config['detection'])
     if not eye_locations:
-        print(f"[PRANK] No eyes detected in {original_path}")
-        return
+        print(f"[PRANK] No eyes detected: {original_path}")
+        raise ValueError(f"No eyes detected in: {original_path}")
 
     img_rgb = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
 
@@ -52,7 +52,7 @@ def generate_prank_poster(original_path, prank_path, config):
         )
     except Exception as e:
         print(f"[PRANK] Error applying googly eyes: {e}")
-        return
+        raise
 
     # Convert and save
     prank_img_bgr = cv2.cvtColor(prank_img_rgb, cv2.COLOR_RGB2BGR)

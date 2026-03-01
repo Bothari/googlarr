@@ -9,7 +9,7 @@ CMD=(docker run --rm -it \
   -v "$(pwd)/data":/app/data \
   -v /etc/localtime:/etc/localtime:ro \
   -e TZ="$TIMEZONE" \
-  plex_prank:latest)
+  googlarr:latest)
 
 # Check if arguments are passed (e.g. "regenerate 12345")
 if [[ $# -gt 0 ]]; then

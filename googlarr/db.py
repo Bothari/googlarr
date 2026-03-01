@@ -12,10 +12,19 @@ def init_db(db_path):
                 library TEXT,
                 original_path TEXT,
                 prank_path TEXT,
-                status TEXT
+                status TEXT,
+                retry_count INTEGER DEFAULT 0
             )
         """)
         conn.commit()
+
+        # Add retry_count column if it doesn't exist (for existing databases)
+        cursor = conn.cursor()
+        cursor.execute("PRAGMA table_info(library_items)")
+        columns = {row[1] for row in cursor.fetchall()}
+        if 'retry_count' not in columns:
+            conn.execute("ALTER TABLE library_items ADD COLUMN retry_count INTEGER DEFAULT 0")
+            conn.commit()
 
 
 def reset_working_tasks(db_path):
@@ -119,13 +128,31 @@ def claim_next_poster_task(db_path):
             RETURNING *
         """)
         row = c.fetchone()
+        if row:
+            return dict(row)
+
+        # Try to claim a FAILED item for retry (max 3 retries)
+        c.execute("""
+            UPDATE library_items
+            SET status = 'NEW', retry_count = retry_count + 1
+            WHERE item_id = (
+                SELECT item_id FROM library_items
+                WHERE status = 'FAILED' AND retry_count < 3
+                LIMIT 1
+            )
+            RETURNING *
+        """)
+        row = c.fetchone()
         return dict(row) if row else None
 
 
 def update_item_status(db_path, item_id, new_status):
     with sqlite3.connect(db_path) as conn:
         c = conn.cursor()
-        c.execute("UPDATE library_items SET status = ? WHERE item_id = ?", (new_status, item_id))
+        if new_status == 'FAILED':
+            c.execute("UPDATE library_items SET status = ?, retry_count = retry_count + 1 WHERE item_id = ?", (new_status, item_id))
+        else:
+            c.execute("UPDATE library_items SET status = ? WHERE item_id = ?", (new_status, item_id))
         conn.commit()
 
 

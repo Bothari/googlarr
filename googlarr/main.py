@@ -20,6 +20,20 @@ from googlarr.prank import download_poster, generate_prank_poster, set_poster, i
 # --- CONFIG ---
 SYNC_INTERVAL_MINUTES = 360
 POSTER_WORKERS = 1
+WORKER_IDLE_SLEEP_SECONDS = 30
+
+
+def is_prank_active(config):
+    """Check if we are currently inside the prank window."""
+    now = datetime.now()
+    cron_on = croniter(config['schedule']['start'], now)
+    cron_off = croniter(config['schedule']['stop'], now)
+
+    last_on = cron_on.get_prev(datetime)
+    last_off = cron_off.get_prev(datetime)
+
+    # If the last start time is after the last stop time, we're in a prank window
+    return last_on > last_off
 
 
 async def sync_task(config, plex):
@@ -35,7 +49,7 @@ async def poster_worker(worker_id, config, plex):
 
         if not item:
             print(f"[POSTER-{worker_id}] Sleeping...")
-            await asyncio.sleep(360)
+            await asyncio.sleep(WORKER_IDLE_SLEEP_SECONDS)
             continue
 
         print(f"[POSTER-{worker_id}] Working on item {item['title']} ({item['status']})")
@@ -59,6 +73,38 @@ async def poster_worker(worker_id, config, plex):
 
 async def update_posters_task(config, plex):
     print("[UPDATE] Starting cron-driven poster updater")
+
+    # Handle startup state: check if prank window is currently active
+    prank_active = is_prank_active(config)
+    print(f"[UPDATE] At startup, prank window is {'ACTIVE' if prank_active else 'INACTIVE'}")
+
+    if prank_active:
+        print("[UPDATE] Applying any ready pranks from startup...")
+        items = get_items_for_update(config['database'])
+        for item in items:
+            if item['status'] == 'PRANK_GENERATED':
+                try:
+                    plex_item = plex.fetchItem(int(item['item_id']))
+                    set_poster(plex_item, item['prank_path'])
+                    update_item_status(config['database'], item['item_id'], 'PRANK_APPLIED')
+                    print(f"[UPDATE] Applied prank poster to {item['title']} (startup)")
+                except Exception as e:
+                    update_item_status(config['database'], item['item_id'], 'FAILED')
+                    print(f"[UPDATE] Error applying startup prank to {item['title']}: {e}")
+    else:
+        print("[UPDATE] Restoring any pranked posters from startup...")
+        items = get_items_for_update(config['database'])
+        for item in items:
+            if item['status'] == 'PRANK_APPLIED':
+                try:
+                    plex_item = plex.fetchItem(int(item['item_id']))
+                    set_poster(plex_item, item['original_path'])
+                    update_item_status(config['database'], item['item_id'], 'PRANK_GENERATED')
+                    print(f"[UPDATE] Restored original poster for {item['title']} (startup)")
+                except Exception as e:
+                    update_item_status(config['database'], item['item_id'], 'FAILED')
+                    print(f"[UPDATE] Error restoring startup poster for {item['title']}: {e}")
+
     while True:
         now = datetime.now()
 
@@ -99,6 +145,7 @@ async def update_posters_task(config, plex):
                     print(f"[UPDATE] Restored original poster for {item['title']}")
 
             except Exception as e:
+                update_item_status(config['database'], item['item_id'], 'FAILED')
                 print(f"[UPDATE] Error updating poster for {item['title']}: {e}")
 
 
