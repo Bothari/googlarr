@@ -133,6 +133,42 @@ Failed items retry up to 3 times automatically before staying in `FAILED` state.
 
 ---
 
+## Responsive Daemon
+
+The daemon is **responsive to config changes without requiring a restart**:
+
+### How It Works
+- All tasks reload config at each iteration
+- Sleep durations capped at **60 seconds** (was hours)
+- When config file is edited, changes are picked up **within 60 seconds**
+- API signal (if frontend added) triggers **instant** reload
+- Graceful error handling: continues with old config if validation fails
+
+### Config Change Examples
+
+**Edit config file:**
+```bash
+nano config/config.yml        # Change schedule, libraries, etc
+# Daemon picks up changes within 60 seconds, no restart needed
+```
+
+**From API/Frontend:**
+```python
+from googlarr.main import signal_config_reload
+signal_config_reload()  # Daemon recalculates immediately
+```
+
+### Responsiveness
+| Task | Delay |
+|------|-------|
+| Config file changes | ~60 seconds |
+| API signal | Instant |
+| New items in Plex | ~60 seconds |
+
+See `RESPONSIVE_DAEMON_GUIDE.md` for complete details.
+
+---
+
 ## Development
 
 Portions of this project were created with ChatGPT code generation. I am a veteran software engineer however, and have code inspected the output and run extensive testing on multiple libraries.
@@ -143,6 +179,8 @@ Portions of this project were created with ChatGPT code generation. I am a veter
 - **CLI tools**: Manual control over apply/restore/reset operations
 - **Enhanced status**: Shows schedule info, failed items, and retry counts
 - **Retry system**: Failed items automatically retry up to 3 times
+- **Responsive daemon**: Config changes picked up within 60s without restart
+- **Error recovery**: Daemon continues with previous valid config on validation failure
 
 ## License
 MIT. See `LICENSE`.
