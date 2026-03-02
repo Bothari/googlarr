@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 from croniter import croniter
 
 from plexapi.server import PlexServer
-from googlarr.config import load_config
+from googlarr.config import load_config, validate_config
 from googlarr.db import (
     init_db,
     sync_library_with_plex,
@@ -15,12 +15,23 @@ from googlarr.db import (
     get_items_for_update,
     reset_working_tasks
 )
-from googlarr.prank import download_poster, generate_prank_poster, set_poster, initialize_detector_and_overlay
+from googlarr.prank import (
+    download_poster,
+    generate_prank_poster,
+    set_poster,
+    initialize_detector_and_overlay,
+    apply_pranks,
+    restore_originals
+)
 
 # --- CONFIG ---
 SYNC_INTERVAL_MINUTES = 360
 POSTER_WORKERS = 1
 WORKER_IDLE_SLEEP_SECONDS = 30
+MAX_SLEEP_SECONDS = 60  # Cap on sleep duration to stay responsive
+
+# --- GLOBAL CONFIG RELOAD EVENT ---
+CONFIG_RELOAD_EVENT = asyncio.Event()
 
 
 def is_prank_active(config):
@@ -38,18 +49,60 @@ def is_prank_active(config):
 
 async def sync_task(config, plex):
     while True:
+        try:
+            # Reload config at start of each iteration
+            config = load_config()
+            validate_config(config)
+        except ValueError as e:
+            print(f"[SYNC] Config validation failed: {e}. Using previous config.")
+
         print("[SYNC] Syncing library with Plex...")
-        sync_library_with_plex(config, plex)
-        await asyncio.sleep(SYNC_INTERVAL_MINUTES * 60)
+        try:
+            sync_library_with_plex(config, plex)
+        except Exception as e:
+            print(f"[SYNC] Sync error: {e}")
+
+        # Sleep for interval, but check for reload event every MAX_SLEEP_SECONDS
+        sleep_duration = SYNC_INTERVAL_MINUTES * 60
+        while sleep_duration > 0:
+            try:
+                await asyncio.wait_for(
+                    CONFIG_RELOAD_EVENT.wait(),
+                    timeout=min(sleep_duration, MAX_SLEEP_SECONDS)
+                )
+                # Event was set - config reload requested
+                print("[SYNC] Config reload requested")
+                CONFIG_RELOAD_EVENT.clear()
+                break  # Re-enter outer loop to reload config
+            except asyncio.TimeoutError:
+                # Normal timeout, continue sleeping
+                sleep_duration -= MAX_SLEEP_SECONDS
 
 
 async def poster_worker(worker_id, config, plex):
     while True:
+        try:
+            # Reload config periodically
+            config = load_config()
+            validate_config(config)
+        except ValueError as e:
+            print(f"[POSTER-{worker_id}] Config validation failed: {e}. Using previous config.")
+
         item = claim_next_poster_task(config['database'])
 
         if not item:
             print(f"[POSTER-{worker_id}] Sleeping...")
-            await asyncio.sleep(WORKER_IDLE_SLEEP_SECONDS)
+            try:
+                await asyncio.wait_for(
+                    CONFIG_RELOAD_EVENT.wait(),
+                    timeout=WORKER_IDLE_SLEEP_SECONDS
+                )
+                # Event was set
+                CONFIG_RELOAD_EVENT.clear()
+                print(f"[POSTER-{worker_id}] Config reload signaled")
+            except asyncio.TimeoutError:
+                # Normal timeout
+                pass
             continue
 
         print(f"[POSTER-{worker_id}] Working on item {item['title']} ({item['status']})")
@@ -80,32 +133,21 @@ async def update_posters_task(config, plex):
 
     if prank_active:
         print("[UPDATE] Applying any ready pranks from startup...")
-        items = get_items_for_update(config['database'])
-        for item in items:
-            if item['status'] == 'PRANK_GENERATED':
-                try:
-                    plex_item = plex.fetchItem(int(item['item_id']))
-                    set_poster(plex_item, item['prank_path'])
-                    update_item_status(config['database'], item['item_id'], 'PRANK_APPLIED')
-                    print(f"[UPDATE] Applied prank poster to {item['title']} (startup)")
-                except Exception as e:
-                    update_item_status(config['database'], item['item_id'], 'FAILED')
-                    print(f"[UPDATE] Error applying startup prank to {item['title']}: {e}")
+        count = apply_pranks(config, plex)
+        print(f"[UPDATE] Applied {count} prank poster(s) at startup")
     else:
         print("[UPDATE] Restoring any pranked posters from startup...")
-        items = get_items_for_update(config['database'])
-        for item in items:
-            if item['status'] == 'PRANK_APPLIED':
-                try:
-                    plex_item = plex.fetchItem(int(item['item_id']))
-                    set_poster(plex_item, item['original_path'])
-                    update_item_status(config['database'], item['item_id'], 'PRANK_GENERATED')
-                    print(f"[UPDATE] Restored original poster for {item['title']} (startup)")
-                except Exception as e:
-                    update_item_status(config['database'], item['item_id'], 'FAILED')
-                    print(f"[UPDATE] Error restoring startup poster for {item['title']}: {e}")
+        count = restore_originals(config, plex)
+        print(f"[UPDATE] Restored {count} original poster(s) at startup")
 
     while True:
+        try:
+            # Reload config at start of each iteration
+            config = load_config()
+            validate_config(config)
+        except ValueError as e:
+            print(f"[UPDATE] Config validation failed: {e}. Using previous config.")
+
         now = datetime.now()
 
         cron_on = croniter(config['schedule']['start'], now)
@@ -125,33 +167,50 @@ async def update_posters_task(config, plex):
             action = "restore"
 
         sleep_duration = (next_event - now).total_seconds()
-        print(f"[UPDATE] Next action: {action.upper()} at {next_event}. Current time: {now}. Sleeping for {sleep_duration:.0f} seconds...")
-        await asyncio.sleep(sleep_duration)
+        sleep_duration = min(sleep_duration, MAX_SLEEP_SECONDS)  # Cap at MAX_SLEEP_SECONDS
 
-        # Do the update
-        items = get_items_for_update(config['database'])
-        for item in items:
-            plex_item = plex.fetchItem(int(item['item_id']))
+        print(f"[UPDATE] Next action: {action.upper()} at {next_event}. Sleeping for {sleep_duration:.0f} seconds...")
 
-            try:
-                if action == "apply" and item['status'] == 'PRANK_GENERATED':
-                    set_poster(plex_item, item['prank_path'])
-                    update_item_status(config['database'], item['item_id'], 'PRANK_APPLIED')
-                    print(f"[UPDATE] Applied prank poster to {item['title']}")
+        try:
+            # Sleep OR wait for reload event
+            await asyncio.wait_for(
+                CONFIG_RELOAD_EVENT.wait(),
+                timeout=sleep_duration
+            )
+            # Event was set - config reload requested
+            print("[UPDATE] Config reload requested, recalculating schedule...")
+            CONFIG_RELOAD_EVENT.clear()
+            continue  # Recalculate schedule immediately
 
-                elif action == "restore" and item['status'] == 'PRANK_APPLIED':
-                    set_poster(plex_item, item['original_path'])
-                    update_item_status(config['database'], item['item_id'], 'PRANK_GENERATED')
-                    print(f"[UPDATE] Restored original poster for {item['title']}")
+        except asyncio.TimeoutError:
+            # Normal timeout, check if it's time to act
+            pass
 
-            except Exception as e:
-                update_item_status(config['database'], item['item_id'], 'FAILED')
-                print(f"[UPDATE] Error updating poster for {item['title']}: {e}")
+        # Check if it's time to apply/restore
+        now = datetime.now()
+        if now >= next_event:
+            if action == "apply":
+                count = apply_pranks(config, plex)
+                print(f"[UPDATE] Applied {count} prank poster(s)")
+            else:
+                count = restore_originals(config, plex)
+                print(f"[UPDATE] Restored {count} original poster(s)")
 
+
+
+def signal_config_reload():
+    """Signal all tasks to reload config. Safe to call from any context."""
+    try:
+        CONFIG_RELOAD_EVENT.set()
+        print("[MAIN] Config reload signal sent to all tasks")
+    except RuntimeError:
+        # Event loop might not be running yet
+        pass
 
 
 async def main():
     config = load_config()
+    validate_config(config)
     init_db(config['database'])
     reset_working_tasks(config['database'])
     initialize_detector_and_overlay(config['detection'])

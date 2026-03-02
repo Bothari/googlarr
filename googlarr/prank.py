@@ -3,6 +3,7 @@ import cv2
 import requests
 from googlarr.detector import FaceDetector
 from googlarr.overlay import process_image
+from googlarr.db import get_items_for_update, update_item_status
 
 overlay_img = None
 face_detector = None
@@ -66,4 +67,40 @@ def set_poster(plex_item, image_path):
         raise FileNotFoundError(f"Poster image not found: {image_path}")
 
     plex_item.uploadPoster(filepath=str(image_path))
+
+
+def apply_pranks(config, plex) -> int:
+    """Apply prank posters to all PRANK_GENERATED items. Returns count applied."""
+    items = get_items_for_update(config['database'])
+    count = 0
+    for item in items:
+        if item['status'] == 'PRANK_GENERATED':
+            try:
+                plex_item = plex.fetchItem(int(item['item_id']))
+                set_poster(plex_item, item['prank_path'])
+                update_item_status(config['database'], item['item_id'], 'PRANK_APPLIED')
+                print(f"[APPLY] Applied prank poster to {item['title']}")
+                count += 1
+            except Exception as e:
+                update_item_status(config['database'], item['item_id'], 'FAILED')
+                print(f"[APPLY] Error applying prank to {item['title']}: {e}")
+    return count
+
+
+def restore_originals(config, plex) -> int:
+    """Restore original posters for all PRANK_APPLIED items. Returns count restored."""
+    items = get_items_for_update(config['database'])
+    count = 0
+    for item in items:
+        if item['status'] == 'PRANK_APPLIED':
+            try:
+                plex_item = plex.fetchItem(int(item['item_id']))
+                set_poster(plex_item, item['original_path'])
+                update_item_status(config['database'], item['item_id'], 'PRANK_GENERATED')
+                print(f"[RESTORE] Restored original poster for {item['title']}")
+                count += 1
+            except Exception as e:
+                update_item_status(config['database'], item['item_id'], 'FAILED')
+                print(f"[RESTORE] Error restoring original for {item['title']}: {e}")
+    return count
 

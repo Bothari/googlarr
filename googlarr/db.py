@@ -163,3 +163,25 @@ def get_items_for_update(db_path):
         c.execute("SELECT * FROM library_items WHERE status IN ('PRANK_GENERATED', 'PRANK_APPLIED')")
         return [dict(row) for row in c.fetchall()]
 
+
+def reset_failed_items(db_path, item_id=None):
+    """Reset FAILED items back to NEW with retry_count = 0.
+
+    If item_id is None, reset all FAILED items.
+    If item_id is provided, reset only that specific item.
+
+    Returns the count of items reset.
+    """
+    with sqlite3.connect(db_path) as conn:
+        c = conn.cursor()
+
+        if item_id is None:
+            # Reset all FAILED items
+            c.execute("UPDATE library_items SET status = 'NEW', retry_count = 0 WHERE status = 'FAILED'")
+        else:
+            # Reset specific item if it's FAILED
+            c.execute("UPDATE library_items SET status = 'NEW', retry_count = 0 WHERE item_id = ? AND status = 'FAILED'", (item_id,))
+
+        conn.commit()
+        return c.rowcount
+
