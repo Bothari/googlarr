@@ -98,6 +98,45 @@ python -m googlarr.regenerate <item_id>  # Download + regenerate prank for one i
 
 ---
 
+## Web UI
+
+Googlarr includes a lightweight web interface running on **port 8721**. Access it at:
+```
+http://your-host:8721
+```
+
+The web UI starts automatically when you run the daemon and provides:
+
+### Status Page
+- **Current Status**: Shows if prank window is ACTIVE or INACTIVE
+- **Schedule Info**: Next apply and restore times
+- **Statistics**: Breakdown of items by status (NEW, PRANK_GENERATED, PRANK_APPLIED, FAILED, etc)
+- **Failed Items**: List of failed items with retry counts
+- **Override Controls**:
+  - `Apply Now` - Immediately apply all ready pranks (bypass schedule)
+  - `Restore Now` - Immediately restore all applied pranks (bypass schedule)
+  - `↻ Reload Config` - Signal daemon to reload config instantly
+- **Auto-Refresh**: Updates every 5 seconds
+
+### Library Page
+- **Browse**: Select which library to view from dropdown
+- **Poster Grid**: 4-column responsive grid (adapts to screen size)
+- **Hover Preview**: Hover over a poster to see the pranked version
+- **Infinite Scroll**: Automatically loads more items as you scroll
+- **View-only**: Just for browsing and previewing
+
+### Features
+- ✅ Dark theme, easy on the eyes
+- ✅ Fully responsive (desktop, tablet, mobile)
+- ✅ Real-time status updates
+- ✅ No external dependencies (vanilla JavaScript)
+- ✅ Integrates with daemon for instant control
+- ✅ Can trigger override actions from the UI
+
+See `WEB_FRONTEND_QUICKSTART.md` for detailed guide.
+
+---
+
 ## Config Validation
 
 Googlarr validates your config on startup and will exit with a clear error message if anything is missing:
@@ -174,6 +213,7 @@ See `RESPONSIVE_DAEMON_GUIDE.md` for complete details.
 Portions of this project were created with ChatGPT code generation. I am a veteran software engineer however, and have code inspected the output and run extensive testing on multiple libraries.
 
 ### Recent Improvements
+- **Web UI**: Status dashboard + library browser on port 8721
 - **Unified code paths**: Apply/restore logic extracted to reusable functions (no more duplication)
 - **Config validation**: Required keys checked on startup with clear error messages
 - **CLI tools**: Manual control over apply/restore/reset operations
@@ -181,6 +221,7 @@ Portions of this project were created with ChatGPT code generation. I am a veter
 - **Retry system**: Failed items automatically retry up to 3 times
 - **Responsive daemon**: Config changes picked up within 60s without restart
 - **Error recovery**: Daemon continues with previous valid config on validation failure
+- **Override controls**: Apply/Restore buttons to bypass schedule from UI
 
 ## License
 MIT. See `LICENSE`.

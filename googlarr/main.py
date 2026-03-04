@@ -2,6 +2,7 @@ import traceback
 import asyncio
 import os
 import time
+import threading
 from datetime import datetime, timedelta
 from croniter import croniter
 
@@ -216,11 +217,25 @@ async def main():
     initialize_detector_and_overlay(config['detection'])
     plex = PlexServer(config['plex']['url'], config['plex']['token'])
 
+    # Start web server in separate thread
+    print("[MAIN] Starting web server on port 8721...")
+    web_thread = threading.Thread(daemon=True, target=start_web_server)
+    web_thread.start()
+
     await asyncio.gather(
         sync_task(config, plex),
         update_posters_task(config, plex),
         *[poster_worker(i, config, plex) for i in range(POSTER_WORKERS)]
     )
+
+
+def start_web_server():
+    """Start Flask web server in separate thread."""
+    try:
+        from googlarr.web import app
+        app.run(host='0.0.0.0', port=8721, debug=False, use_reloader=False)
+    except Exception as e:
+        print(f"[WEB] Error starting web server: {e}")
 
 
 if __name__ == "__main__":
