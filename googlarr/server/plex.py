@@ -14,7 +14,7 @@ class PlexAdapter:
             items.append({
                 'item_id': str(item.ratingKey),
                 'title': item.title,
-                'has_seasons': hasattr(item, 'seasons'),
+                'has_seasons': item.TYPE == 'show',
             })
         return items
 
