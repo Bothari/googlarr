@@ -315,6 +315,58 @@
         .poster-item.has-prank:hover .poster-status { opacity: 0; transition: opacity 0.3s ease; }
         .poster-item.has-prank:hover .poster-status-prank-hover { opacity: 1; }
 
+        .poster-item-actions {
+            position: absolute;
+            bottom: 28px;
+            left: 0; right: 0;
+            display: flex;
+            justify-content: center;
+            gap: 6px;
+            z-index: 5;
+            opacity: 0;
+            transition: opacity 0.2s ease;
+            padding: 0 6px;
+        }
+
+        .poster-item:hover .poster-item-actions {
+            opacity: 1;
+        }
+
+        .poster-action-btn {
+            font-size: 10px;
+            font-weight: 700;
+            padding: 3px 8px;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            white-space: nowrap;
+        }
+
+        .poster-action-btn.apply {
+            background: rgba(33, 150, 243, 0.92);
+            color: #fff;
+        }
+
+        .poster-action-btn.apply:hover {
+            background: rgba(33, 150, 243, 1);
+        }
+
+        .poster-action-btn.restore {
+            background: rgba(76, 175, 80, 0.92);
+            color: #fff;
+        }
+
+        .poster-action-btn.restore:hover {
+            background: rgba(76, 175, 80, 1);
+        }
+
+        .poster-action-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
         .poster-placeholder {
             position: absolute;
             top: 0; left: 0; right: 0; bottom: 0;
