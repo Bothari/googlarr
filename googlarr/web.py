@@ -215,6 +215,8 @@ def api_item_apply(item_id):
         return jsonify({'success': False, 'error': 'Item not found'}), 404
 
     item = dict(item)
+    if not item.get('prank_path'):
+        return jsonify({'success': False, 'error': 'Prank poster not generated yet'}), 400
     prank_path = os.path.join(APP_ROOT, item['prank_path'])
     if not os.path.exists(prank_path):
         return jsonify({'success': False, 'error': 'Prank poster not generated yet'}), 400
@@ -246,6 +248,8 @@ def api_item_restore(item_id):
         return jsonify({'success': False, 'error': 'Item not found'}), 404
 
     item = dict(item)
+    if not item.get('original_path'):
+        return jsonify({'success': False, 'error': 'Original poster not found'}), 400
     original_path = os.path.join(APP_ROOT, item['original_path'])
     if not os.path.exists(original_path):
         return jsonify({'success': False, 'error': 'Original poster not found'}), 400
