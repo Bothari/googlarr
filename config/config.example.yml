@@ -1,6 +1,7 @@
-plex:
+server:
+  type: "plex"                        # plex | emby | jellyfin
   url: "http://your.plex.server:32400"
-  token: "your_plex_token"
+  token: "your_plex_token_or_emby_api_key"
   libraries:
     - "Movies"
     - "TV Shows"
