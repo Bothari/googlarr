@@ -1,3 +1,4 @@
+import base64
 import os
 import requests
 
@@ -80,7 +81,7 @@ class EmbyAdapter:
         if not os.path.exists(image_path):
             raise FileNotFoundError(f"Poster image not found: {image_path}")
         with open(image_path, 'rb') as f:
-            image_data = f.read()
+            image_data = base64.b64encode(f.read()).decode('utf-8')
         resp = requests.post(
             f"{self._base_url}/Items/{item_id}/Images/Primary",
             headers={**self._headers, 'Content-Type': 'image/jpeg'},
