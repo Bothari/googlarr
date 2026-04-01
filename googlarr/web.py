@@ -103,7 +103,7 @@ def api_libraries():
     libraries = []
     with sqlite3.connect(db_path) as conn:
         c = conn.cursor()
-        for lib_name in config['plex']['libraries']:
+        for lib_name in config['server']['libraries']:
             c.execute("SELECT COUNT(*) FROM library_items WHERE library = ?", (lib_name,))
             count = c.fetchone()[0]
             libraries.append({
@@ -199,14 +199,80 @@ def api_poster_prank(item_id):
     return send_file(prank_path, mimetype='image/jpeg')
 
 
+@app.route('/api/items/<item_id>/apply', methods=['POST'])
+def api_item_apply(item_id):
+    """Apply prank poster to a single item immediately."""
+    config = get_config()
+    db_path = get_db()
+
+    with sqlite3.connect(db_path) as conn:
+        conn.row_factory = sqlite3.Row
+        c = conn.cursor()
+        c.execute("SELECT * FROM library_items WHERE item_id = ?", (item_id,))
+        item = c.fetchone()
+
+    if not item:
+        return jsonify({'success': False, 'error': 'Item not found'}), 404
+
+    item = dict(item)
+    if not item.get('prank_path'):
+        return jsonify({'success': False, 'error': 'Prank poster not generated yet'}), 400
+    prank_path = os.path.join(APP_ROOT, item['prank_path'])
+    if not os.path.exists(prank_path):
+        return jsonify({'success': False, 'error': 'Prank poster not generated yet'}), 400
+
+    try:
+        from googlarr.server import create_server
+        from googlarr.db import update_item_status
+        server = create_server(config)
+        server.upload_poster(item_id, prank_path)
+        update_item_status(db_path, item_id, 'PRANK_APPLIED')
+        return jsonify({'success': True, 'status': 'PRANK_APPLIED'})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/items/<item_id>/restore', methods=['POST'])
+def api_item_restore(item_id):
+    """Restore original poster for a single item immediately."""
+    config = get_config()
+    db_path = get_db()
+
+    with sqlite3.connect(db_path) as conn:
+        conn.row_factory = sqlite3.Row
+        c = conn.cursor()
+        c.execute("SELECT * FROM library_items WHERE item_id = ?", (item_id,))
+        item = c.fetchone()
+
+    if not item:
+        return jsonify({'success': False, 'error': 'Item not found'}), 404
+
+    item = dict(item)
+    if not item.get('original_path'):
+        return jsonify({'success': False, 'error': 'Original poster not found'}), 400
+    original_path = os.path.join(APP_ROOT, item['original_path'])
+    if not os.path.exists(original_path):
+        return jsonify({'success': False, 'error': 'Original poster not found'}), 400
+
+    try:
+        from googlarr.server import create_server
+        from googlarr.db import update_item_status
+        server = create_server(config)
+        server.upload_poster(item_id, original_path)
+        update_item_status(db_path, item_id, 'PRANK_GENERATED')
+        return jsonify({'success': True, 'status': 'PRANK_GENERATED'})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 @app.route('/api/apply-now', methods=['POST'])
 def api_apply_now():
     """Override: Apply all PRANK_GENERATED items immediately."""
     config = get_config()
     try:
-        from plexapi.server import PlexServer
-        plex = PlexServer(config['plex']['url'], config['plex']['token'])
-        count = apply_pranks(config, plex)
+        from googlarr.server import create_server
+        server = create_server(config)
+        count = apply_pranks(config, server)
         return jsonify({
             'success': True,
             'applied_count': count,
@@ -224,9 +290,9 @@ def api_restore_now():
     """Override: Restore all PRANK_APPLIED items immediately."""
     config = get_config()
     try:
-        from plexapi.server import PlexServer
-        plex = PlexServer(config['plex']['url'], config['plex']['token'])
-        count = restore_originals(config, plex)
+        from googlarr.server import create_server
+        server = create_server(config)
+        count = restore_originals(config, server)
         return jsonify({
             'success': True,
             'restored_count': count,

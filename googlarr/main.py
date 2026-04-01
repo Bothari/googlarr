@@ -6,20 +6,18 @@ import threading
 from datetime import datetime, timedelta
 from croniter import croniter
 
-from plexapi.server import PlexServer
+from googlarr.server import create_server
 from googlarr.config import load_config, validate_config
 from googlarr.db import (
     init_db,
-    sync_library_with_plex,
+    sync_library_items,
     claim_next_poster_task,
     update_item_status,
     get_items_for_update,
     reset_working_tasks
 )
 from googlarr.prank import (
-    download_poster,
     generate_prank_poster,
-    set_poster,
     initialize_detector_and_overlay,
     apply_pranks,
     restore_originals
@@ -49,7 +47,7 @@ def is_prank_active(config):
     return last_on > last_off
 
 
-async def sync_task(config, plex):
+async def sync_task(config, server):
     while True:
         try:
             # Reload config at start of each iteration
@@ -58,9 +56,9 @@ async def sync_task(config, plex):
         except ValueError as e:
             print(f"[SYNC] Config validation failed: {e}. Using previous config.")
 
-        print("[SYNC] Syncing library with Plex...")
+        print("[SYNC] Syncing library...")
         try:
-            sync_library_with_plex(config, plex)
+            sync_library_items(config, server)
         except Exception as e:
             print(f"[SYNC] Sync error: {e}")
 
@@ -81,7 +79,7 @@ async def sync_task(config, plex):
                 sleep_duration -= MAX_SLEEP_SECONDS
 
 
-async def poster_worker(worker_id, config, plex):
+async def poster_worker(worker_id, config, server):
     while True:
         try:
             # Reload config periodically
@@ -111,7 +109,7 @@ async def poster_worker(worker_id, config, plex):
 
         try:
             if item['status'] == 'WORKING_DOWNLOAD':
-                await asyncio.to_thread(download_poster, plex, item, item['original_path'], config)
+                await asyncio.to_thread(server.download_poster, item['item_id'], item['original_path'])
                 update_item_status(config['database'], item['item_id'], 'ORIGINAL_DOWNLOADED')
 
             elif item['status'] == 'WORKING_PRANKIFY':
@@ -126,7 +124,7 @@ async def poster_worker(worker_id, config, plex):
             update_item_status(config['database'], item['item_id'], 'FAILED')
 
 
-async def update_posters_task(config, plex):
+async def update_posters_task(config, server):
     print("[UPDATE] Starting cron-driven poster updater")
 
     # Handle startup state: check if prank window is currently active
@@ -135,11 +133,11 @@ async def update_posters_task(config, plex):
 
     if prank_active:
         print("[UPDATE] Applying any ready pranks from startup...")
-        count = apply_pranks(config, plex)
+        count = apply_pranks(config, server)
         print(f"[UPDATE] Applied {count} prank poster(s) at startup")
     else:
         print("[UPDATE] Restoring any pranked posters from startup...")
-        count = restore_originals(config, plex)
+        count = restore_originals(config, server)
         print(f"[UPDATE] Restored {count} original poster(s) at startup")
 
     while True:
@@ -192,10 +190,10 @@ async def update_posters_task(config, plex):
         now = datetime.now()
         if now >= next_event:
             if action == "apply":
-                count = apply_pranks(config, plex)
+                count = apply_pranks(config, server)
                 print(f"[UPDATE] Applied {count} prank poster(s)")
             else:
-                count = restore_originals(config, plex)
+                count = restore_originals(config, server)
                 print(f"[UPDATE] Restored {count} original poster(s)")
 
 
@@ -219,7 +217,7 @@ async def main():
     init_db(config['database'])
     reset_working_tasks(config['database'])
     initialize_detector_and_overlay(config['detection'])
-    plex = PlexServer(config['plex']['url'], config['plex']['token'])
+    server = create_server(config)
 
     # Start web server in separate thread
     print("[MAIN] Starting web server on port 8721...")
@@ -227,9 +225,9 @@ async def main():
     web_thread.start()
 
     await asyncio.gather(
-        sync_task(config, plex),
-        update_posters_task(config, plex),
-        *[poster_worker(i, config, plex) for i in range(POSTER_WORKERS)]
+        sync_task(config, server),
+        update_posters_task(config, server),
+        *[poster_worker(i, config, server) for i in range(POSTER_WORKERS)]
     )
 
 

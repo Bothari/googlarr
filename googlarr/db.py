@@ -34,26 +34,23 @@ def reset_working_tasks(db_path):
         conn.commit()
 
 
-def sync_library_with_plex(config, plex):
+def sync_library_items(config, server):
 
     originals_dir = config['paths']['originals_dir']
     prank_dir = config['paths']['prank_dir']
 
-    for lib_name in config['plex']['libraries']:
+    for lib_name in config['server']['libraries']:
         print(f"[SYNC] Syncing library: {lib_name}")
-        library = plex.library.section(lib_name)
+        items = server.get_library_items(lib_name)
 
         with sqlite3.connect(config['database']) as conn:
             c = conn.cursor()
 
-            current_ids = set()
-            for item in library.all():
-                item_id = str(item.ratingKey)
-                title = item.title
+            for item in items:
+                item_id = item['item_id']
+                title = item['title']
 
                 print(f"[SYNC] Adding item: {item_id}, {title}, {originals_dir}/{item_id}.jpg, {prank_dir}/{item_id}.jpg")
-
-                current_ids.add(item_id)
 
                 c.execute(
                     "INSERT OR IGNORE INTO library_items (item_id, title, library, original_path, prank_path, status) "
@@ -68,15 +65,10 @@ def sync_library_with_plex(config, plex):
                     )
                 )
 
-                if hasattr(item, 'seasons'):
-                    for season in item.seasons():
-
-                        season_id = str(season.ratingKey)
-                        season_title = f"{item.title} - {season.title}"
-
-                        if not season.thumb:
-                            print(f"[SYNC] Skipping {season_title}: No poster")
-                            continue
+                if item['has_seasons']:
+                    for season in server.get_seasons(item_id):
+                        season_id = season['item_id']
+                        season_title = f"{title} - {season['title']}"
 
                         print(f"[SYNC] Adding season: {season_id}, {season_title}, {originals_dir}/{season_id}.jpg, {prank_dir}/{season_id}.jpg")
 
