@@ -9,13 +9,16 @@ def load_config(path='config/config.yml'):
 
 def validate_config(config):
     """Validate config and raise ValueError if invalid."""
-    # Check required Plex keys
-    required_plex_keys = ['url', 'token', 'libraries']
-    if 'plex' not in config:
-        raise ValueError("Missing required key: 'plex'")
-    for key in required_plex_keys:
-        if key not in config['plex']:
-            raise ValueError(f"Missing required key: 'plex.{key}'")
+    # Check required server keys
+    required_server_keys = ['type', 'url', 'token', 'libraries']
+    if 'server' not in config:
+        raise ValueError("Missing required key: 'server'")
+    for key in required_server_keys:
+        if key not in config['server']:
+            raise ValueError(f"Missing required key: 'server.{key}'")
+    valid_types = ('plex', 'emby', 'jellyfin')
+    if config['server']['type'] not in valid_types:
+        raise ValueError(f"'server.type' must be one of: {', '.join(valid_types)}")
 
     # Check required schedule keys
     required_schedule_keys = ['start', 'stop']
