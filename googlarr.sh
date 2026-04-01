@@ -60,7 +60,6 @@ run() {
         -v /etc/localtime:/etc/localtime:ro \
         -e TZ="$TIMEZONE" \
         -e PYTHONUNBUFFERED=1 \
-        --network htpc_mediarr \
         --restart unless-stopped \
         "$IMAGE_NAME:latest"
 
@@ -85,7 +84,6 @@ run_fg() {
         -v /etc/localtime:/etc/localtime:ro \
         -e TZ="$TIMEZONE" \
         -e PYTHONUNBUFFERED=1 \
-        --network htpc_mediarr \
         "$IMAGE_NAME:latest"
 }
 
