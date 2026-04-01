@@ -103,7 +103,7 @@ def api_libraries():
     libraries = []
     with sqlite3.connect(db_path) as conn:
         c = conn.cursor()
-        for lib_name in config['plex']['libraries']:
+        for lib_name in config['server']['libraries']:
             c.execute("SELECT COUNT(*) FROM library_items WHERE library = ?", (lib_name,))
             count = c.fetchone()[0]
             libraries.append({
@@ -204,9 +204,9 @@ def api_apply_now():
     """Override: Apply all PRANK_GENERATED items immediately."""
     config = get_config()
     try:
-        from plexapi.server import PlexServer
-        plex = PlexServer(config['plex']['url'], config['plex']['token'])
-        count = apply_pranks(config, plex)
+        from googlarr.server import create_server
+        server = create_server(config)
+        count = apply_pranks(config, server)
         return jsonify({
             'success': True,
             'applied_count': count,
@@ -224,9 +224,9 @@ def api_restore_now():
     """Override: Restore all PRANK_APPLIED items immediately."""
     config = get_config()
     try:
-        from plexapi.server import PlexServer
-        plex = PlexServer(config['plex']['url'], config['plex']['token'])
-        count = restore_originals(config, plex)
+        from googlarr.server import create_server
+        server = create_server(config)
+        count = restore_originals(config, server)
         return jsonify({
             'success': True,
             'restored_count': count,
