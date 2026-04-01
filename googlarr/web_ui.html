@@ -633,6 +633,54 @@
             document.getElementById('lastUpdated').textContent = formatTime(data.last_updated);
         }
 
+        async function itemAction(itemId, action, btn) {
+            btn.disabled = true;
+            const original = btn.textContent;
+            btn.textContent = '...';
+            try {
+                const resp = await fetch(`${API_BASE}/items/${itemId}/${action}`, { method: 'POST' });
+                const data = await resp.json();
+                if (data.success) {
+                    // Update the status badge on this card
+                    const card = btn.closest('.poster-item');
+                    const badge = card.querySelector('.poster-status');
+                    const statusConfig = {
+                        'PRANK_APPLIED':   { cls: 'status-prank-live',  label: 'Live' },
+                        'PRANK_GENERATED': { cls: 'status-prank-ready', label: 'Ready' },
+                    };
+                    const cfg = statusConfig[data.status];
+                    if (cfg && badge) {
+                        badge.className = `poster-status ${cfg.cls}`;
+                        badge.textContent = cfg.label;
+                    }
+                    // Swap which button is visible
+                    const actions = card.querySelector('.poster-item-actions');
+                    if (actions) {
+                        actions.innerHTML = '';
+                        if (data.status === 'PRANK_GENERATED') {
+                            actions.appendChild(makeActionBtn(itemId, 'apply', 'Apply'));
+                        } else if (data.status === 'PRANK_APPLIED') {
+                            actions.appendChild(makeActionBtn(itemId, 'restore', 'Restore'));
+                        }
+                    }
+                } else {
+                    btn.textContent = 'Error';
+                    setTimeout(() => { btn.disabled = false; btn.textContent = original; }, 2000);
+                }
+            } catch (e) {
+                btn.textContent = 'Error';
+                setTimeout(() => { btn.disabled = false; btn.textContent = original; }, 2000);
+            }
+        }
+
+        function makeActionBtn(itemId, action, label) {
+            const btn = document.createElement('button');
+            btn.className = `poster-action-btn ${action}`;
+            btn.textContent = label;
+            btn.onclick = (e) => { e.stopPropagation(); itemAction(itemId, action, btn); };
+            return btn;
+        }
+
         async function applyNow() {
             if (!confirm('Apply pranks to all PRANK_GENERATED items?')) return;
             const res = await fetch(`${API_BASE}/apply-now`, { method: 'POST' });
@@ -768,6 +816,18 @@
                     hoverBadge.className = 'poster-status-prank-hover';
                     hoverBadge.textContent = 'Viewing Prank';
                     wrapper.appendChild(hoverBadge);
+                }
+
+                // Per-item action buttons (Apply or Restore)
+                if (item.status === 'PRANK_GENERATED' || item.status === 'PRANK_APPLIED') {
+                    const actions = document.createElement('div');
+                    actions.className = 'poster-item-actions';
+                    if (item.status === 'PRANK_GENERATED') {
+                        actions.appendChild(makeActionBtn(item.item_id, 'apply', 'Apply'));
+                    } else {
+                        actions.appendChild(makeActionBtn(item.item_id, 'restore', 'Restore'));
+                    }
+                    wrapper.appendChild(actions);
                 }
 
                 const title = document.createElement('div');
