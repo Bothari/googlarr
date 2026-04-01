@@ -9,8 +9,15 @@ class EmbyAdapter:
         self._headers = {'X-Emby-Token': self._token}
 
         resp = requests.get(f"{self._base_url}/Users/Me", headers=self._headers)
-        resp.raise_for_status()
-        self._user_id = resp.json()['Id']
+        if resp.ok:
+            self._user_id = resp.json()['Id']
+        else:
+            # Some Emby versions return 500 for /Users/Me with API keys; fall back to /Users
+            resp = requests.get(f"{self._base_url}/Users", headers=self._headers)
+            resp.raise_for_status()
+            users = resp.json()
+            admin = next((u for u in users if u.get('Policy', {}).get('IsAdministrator')), users[0])
+            self._user_id = admin['Id']
 
     def _get_library_id(self, library_name: str) -> str:
         resp = requests.get(f"{self._base_url}/Library/VirtualFolders", headers=self._headers)
