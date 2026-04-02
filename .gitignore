@@ -1,4 +1,5 @@
-config/
+config/*
+!config/config.example.yml
 data/
 __pycache__/
 **/__pycache__/

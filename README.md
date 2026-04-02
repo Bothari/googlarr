@@ -32,10 +32,9 @@ Googlarr is a scheduled prank daemon that:
 
 ## Setup
 
-1. Install via Docker Compose (see included `docker-compose.yml`)
-2. Configure your `config.yml` (see [Config Validation](#config-validation) for required keys)
-3. `docker compose up -d`
-4. Pray
+1. Copy `config/config.example.yml` to `config/config.yml` and fill in your Plex URL, token, and libraries
+2. Build and run via `./googlarr.sh build && ./googlarr.sh run` (or `docker compose up -d`)
+3. Pray
 
 ---
 
