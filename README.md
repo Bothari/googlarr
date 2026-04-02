@@ -206,7 +206,9 @@ signal_config_reload()  # Daemon recalculates immediately
 
 ## Development
 
-Portions of this project were created with ChatGPT code generation. I am a veteran software engineer however, and have code inspected the output and run extensive testing on multiple libraries.
+Portions of this project were created with AI code generation (ChatGPT and [Claude Code](https://claude.ai/code)). I am a veteran software engineer however, and have code inspected the output and run extensive testing on multiple libraries.
+
+I also use Claude Code to manage git because I am bad at git.
 
 ### Recent Improvements
 - **Improved face detection**: Fixed coordinate rescaling bug on large images, full 16-point eye contours for more accurate placement
