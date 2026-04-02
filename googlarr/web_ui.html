@@ -482,9 +482,22 @@
             <div class="library-header">
                 <button class="back-button" onclick="showStatus()">← Back to Status</button>
                 <label>
-                    Select Library:
+                    Library:
                     <select id="librarySelect" class="library-select" onchange="changeLibrary()">
                         <option>Loading...</option>
+                    </select>
+                </label>
+                <label>
+                    Status:
+                    <select id="statusFilter" class="library-select" onchange="changeFilter()">
+                        <option value="">All</option>
+                        <option value="PRANK_GENERATED">Prank Ready</option>
+                        <option value="PRANK_APPLIED">Prank Live</option>
+                        <option value="ORIGINAL_DOWNLOADED">Original</option>
+                        <option value="FAILED">Failed</option>
+                        <option value="WORKING_PRANKIFY">Processing</option>
+                        <option value="WORKING_DOWNLOAD">Downloading</option>
+                        <option value="NEW">Queued</option>
                     </select>
                 </label>
             </div>
@@ -503,6 +516,7 @@
     <script>
         const API_BASE = '/api';
         let currentLibrary = null;
+        let currentStatusFilter = '';
         let currentPage = 1;
         let isLoading = false;
         let hasMoreItems = true;
@@ -605,8 +619,16 @@
         }
 
         async function changeLibrary() {
-            const select = document.getElementById('librarySelect');
-            currentLibrary = select.value;
+            currentLibrary = document.getElementById('librarySelect').value;
+            resetGrid();
+        }
+
+        function changeFilter() {
+            currentStatusFilter = document.getElementById('statusFilter').value;
+            resetGrid();
+        }
+
+        function resetGrid() {
             currentPage = 1;
             hasMoreItems = true;
             document.getElementById('posterGrid').innerHTML = '';
@@ -619,14 +641,17 @@
             isLoading = true;
             document.getElementById('loadingIndicator').style.display = 'block';
 
-            const res = await fetch(
-                `${API_BASE}/library/${encodeURIComponent(currentLibrary)}?page=${currentPage}&limit=20`
-            );
+            const params = new URLSearchParams({ page: currentPage, limit: 20 });
+            if (currentStatusFilter) params.set('status', currentStatusFilter);
+            const res = await fetch(`${API_BASE}/library/${encodeURIComponent(currentLibrary)}?${params}`);
             const data = await res.json();
 
             // Update info
+            const filterLabel = currentStatusFilter
+                ? ` · filtered by "${document.getElementById('statusFilter').selectedOptions[0].text}"`
+                : '';
             document.getElementById('libraryInfo').textContent =
-                `Showing ${data.items.length} of ${data.total} items in "${data.library}"`;
+                `Showing ${data.total} items in "${data.library}"${filterLabel}`;
 
             // Status badge config
             const statusConfig = {

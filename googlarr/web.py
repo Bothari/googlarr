@@ -116,10 +116,11 @@ def api_libraries():
 
 @app.route('/api/library/<library_name>')
 def api_library(library_name):
-    """Get items in a library with pagination."""
+    """Get items in a library with pagination and optional status filter."""
     db_path = get_db()
-    page = request.args.get('page', default=1, type=int)
-    limit = request.args.get('limit', default=20, type=int)
+    page   = request.args.get('page',   default=1,  type=int)
+    limit  = request.args.get('limit',  default=20, type=int)
+    status = request.args.get('status', default='', type=str).strip()
 
     offset = (page - 1) * limit
 
@@ -127,15 +128,23 @@ def api_library(library_name):
         conn.row_factory = sqlite3.Row
         c = conn.cursor()
 
-        # Get total count
-        c.execute("SELECT COUNT(*) FROM library_items WHERE library = ?", (library_name,))
-        total = c.fetchone()[0]
-
-        # Get items for this page
-        c.execute(
-            "SELECT item_id, title, status FROM library_items WHERE library = ? ORDER BY title LIMIT ? OFFSET ?",
-            (library_name, limit, offset)
-        )
+        if status:
+            c.execute(
+                "SELECT COUNT(*) FROM library_items WHERE library = ? AND status = ?",
+                (library_name, status)
+            )
+            total = c.fetchone()[0]
+            c.execute(
+                "SELECT item_id, title, status FROM library_items WHERE library = ? AND status = ? ORDER BY title LIMIT ? OFFSET ?",
+                (library_name, status, limit, offset)
+            )
+        else:
+            c.execute("SELECT COUNT(*) FROM library_items WHERE library = ?", (library_name,))
+            total = c.fetchone()[0]
+            c.execute(
+                "SELECT item_id, title, status FROM library_items WHERE library = ? ORDER BY title LIMIT ? OFFSET ?",
+                (library_name, limit, offset)
+            )
         items = [dict(row) for row in c.fetchall()]
 
     return jsonify({
@@ -143,6 +152,7 @@ def api_library(library_name):
         'page': page,
         'limit': limit,
         'total': total,
+        'status_filter': status,
         'items': items
     })
 

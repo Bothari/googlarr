@@ -19,11 +19,11 @@ detection:
   face_detection_confidence: 0.4
   landmark_detection_confidence: 0.4
   scale_by_face_size: true
-  face_based_eye_scale: 0.35
-  eye_overlay_scale: 40.0
+  face_based_eye_scale: 0.28
+  eye_overlay_scale: 2.0
   use_same_size_for_both_eyes: true
   prevent_floating_eyes: true
-  min_face_confidence: 0.5
+  min_face_confidence: 0.4
   use_haar_fallback: true
   movie_poster_mode: true
   max_faces: 10
