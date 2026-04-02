@@ -7,3 +7,4 @@ mediapipe
 numpy
 opencv-python
 croniter
+flask

@@ -33,6 +33,7 @@ MAX_SLEEP_SECONDS = 60  # Cap on sleep duration to stay responsive
 
 # --- GLOBAL CONFIG RELOAD EVENT ---
 CONFIG_RELOAD_EVENT = asyncio.Event()
+_main_loop = None  # Reference to running event loop for thread-safe signalling
 
 
 def is_prank_active(config):
@@ -200,16 +201,19 @@ async def update_posters_task(config, plex):
 
 
 def signal_config_reload():
-    """Signal all tasks to reload config. Safe to call from any context."""
-    try:
+    """Signal all tasks to reload config. Thread-safe — callable from Flask or anywhere."""
+    global _main_loop
+    if _main_loop is not None and _main_loop.is_running():
+        _main_loop.call_soon_threadsafe(CONFIG_RELOAD_EVENT.set)
+    else:
         CONFIG_RELOAD_EVENT.set()
-        print("[MAIN] Config reload signal sent to all tasks")
-    except RuntimeError:
-        # Event loop might not be running yet
-        pass
+    print("[MAIN] Config reload signal sent to all tasks")
 
 
 async def main():
+    global _main_loop
+    _main_loop = asyncio.get_running_loop()
+
     config = load_config()
     validate_config(config)
     init_db(config['database'])

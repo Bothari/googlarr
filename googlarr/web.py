@@ -145,7 +145,6 @@ def api_library(library_name):
 @app.route('/api/posters/<item_id>/original')
 def api_poster_original(item_id):
     """Serve original poster image."""
-    config = get_config()
     db_path = get_db()
 
     # Get poster path from database
@@ -167,7 +166,6 @@ def api_poster_original(item_id):
 @app.route('/api/posters/<item_id>/prank')
 def api_poster_prank(item_id):
     """Serve prank poster image."""
-    config = get_config()
     db_path = get_db()
 
     # Get poster path from database
