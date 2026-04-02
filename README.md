@@ -110,7 +110,7 @@ The web UI starts automatically when you run the daemon and provides:
 ### Status Page
 - **Current Status**: Shows if prank window is ACTIVE or INACTIVE
 - **Schedule Info**: Next apply and restore times
-- **Statistics**: Breakdown of items by status (NEW, PRANK_GENERATED, PRANK_APPLIED, FAILED, etc)
+- **Statistics**: Breakdown of items by status with human-readable labels
 - **Failed Items**: List of failed items with retry counts
 - **Override Controls**:
   - `Apply Now` - Immediately apply all ready pranks (bypass schedule)
@@ -120,10 +120,10 @@ The web UI starts automatically when you run the daemon and provides:
 
 ### Library Page
 - **Browse**: Select which library to view from dropdown
-- **Poster Grid**: 4-column responsive grid (adapts to screen size)
-- **Hover Preview**: Hover over a poster to see the pranked version
+- **Status Filter**: Filter posters by status (Prank Ready, Original, Failed, etc.)
+- **Poster Grid**: Responsive grid with colour-coded status badges on each poster
+- **Hover Preview**: Hover over a pranked poster to see the googly eye version — badge changes to "Viewing Prank"
 - **Infinite Scroll**: Automatically loads more items as you scroll
-- **View-only**: Just for browsing and previewing
 
 ### Features
 - ✅ Dark theme, easy on the eyes
@@ -131,9 +131,6 @@ The web UI starts automatically when you run the daemon and provides:
 - ✅ Real-time status updates
 - ✅ No external dependencies (vanilla JavaScript)
 - ✅ Integrates with daemon for instant control
-- ✅ Can trigger override actions from the UI
-
-See `WEB_FRONTEND_QUICKSTART.md` for detailed guide.
 
 ---
 
@@ -204,7 +201,6 @@ signal_config_reload()  # Daemon recalculates immediately
 | API signal | Instant |
 | New items in Plex | ~60 seconds |
 
-See `RESPONSIVE_DAEMON_GUIDE.md` for complete details.
 
 ---
 
@@ -213,14 +209,15 @@ See `RESPONSIVE_DAEMON_GUIDE.md` for complete details.
 Portions of this project were created with ChatGPT code generation. I am a veteran software engineer however, and have code inspected the output and run extensive testing on multiple libraries.
 
 ### Recent Improvements
-- **Web UI**: Status dashboard + library browser on port 8721
+- **Improved face detection**: Fixed coordinate rescaling bug on large images, full 16-point eye contours for more accurate placement
+- **Web UI**: Status dashboard + library browser with status filter on port 8721
+- **Poster status badges**: Colour-coded per-poster status in library view, hover to preview prank
 - **Unified code paths**: Apply/restore logic extracted to reusable functions (no more duplication)
 - **Config validation**: Required keys checked on startup with clear error messages
 - **CLI tools**: Manual control over apply/restore/reset operations
 - **Enhanced status**: Shows schedule info, failed items, and retry counts
 - **Retry system**: Failed items automatically retry up to 3 times
 - **Responsive daemon**: Config changes picked up within 60s without restart
-- **Error recovery**: Daemon continues with previous valid config on validation failure
 - **Override controls**: Apply/Restore buttons to bypass schedule from UI
 
 ## License
