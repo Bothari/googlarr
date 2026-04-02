@@ -1,13 +1,13 @@
 plex:
-  url: "http://<your-server>:32400"
-  token: "<your token>"
+  url: "http://<your-plex-url>:32400"
+  token: "<your-plex-token>"
   libraries:
     - "TV Shows"
     - "Movies"
 
 schedule:
-  start: "30 10 * * *"
-  stop: "00 11 * * *"
+  start: "0 0 1 4 *"
+  stop: "59 23 1 4 *"
 
 paths:
   originals_dir: "data/posters/originals"

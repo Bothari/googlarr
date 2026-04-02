@@ -54,12 +54,13 @@ run() {
     # Run the container
     docker run -d \
         --name "$CONTAINER_NAME" \
-        -p "127.0.0.1:${PORT}:8721" \
+        -p "${PORT}:8721" \
         -v "$(pwd)/config:/app/config" \
         -v "$(pwd)/data:/app/data" \
         -v /etc/localtime:/etc/localtime:ro \
         -e TZ="$TIMEZONE" \
         -e PYTHONUNBUFFERED=1 \
+        --network htpc_mediarr \
         --restart unless-stopped \
         "$IMAGE_NAME:latest"
 
@@ -78,12 +79,13 @@ run_fg() {
 
     docker run --rm -it \
         --name "${CONTAINER_NAME}-fg" \
-        -p "127.0.0.1:${PORT}:8721" \
+        -p "${PORT}:8721" \
         -v "$(pwd)/config:/app/config" \
         -v "$(pwd)/data:/app/data" \
         -v /etc/localtime:/etc/localtime:ro \
         -e TZ="$TIMEZONE" \
         -e PYTHONUNBUFFERED=1 \
+        --network htpc_mediarr \
         "$IMAGE_NAME:latest"
 }
 

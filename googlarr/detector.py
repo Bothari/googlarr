@@ -6,6 +6,8 @@ import logging
 import cv2
 import numpy as np
 import mediapipe as mp
+from mediapipe.tasks import python as tasks_python
+from mediapipe.tasks.python import vision as tasks_vision
 from dataclasses import dataclass
 
 # Configure logging
@@ -29,19 +31,22 @@ class FaceDetector:
     
     def __init__(self, config):
         """Initialize the face detector with MediaPipe and OpenCV cascades."""
-        # Initialize MediaPipe Face Detection
-        self.mp_face_detection = mp.solutions.face_detection
-        self.mp_face_mesh = mp.solutions.face_mesh
-        self.face_detection = self.mp_face_detection.FaceDetection(
-            min_detection_confidence=config['face_detection_confidence'],
-            model_selection=1  # Use the full range model for movie posters (good for varied face sizes)
+        # Initialize MediaPipe Face Detector (tasks API)
+        face_detector_options = tasks_vision.FaceDetectorOptions(
+            base_options=tasks_python.BaseOptions(model_asset_path='assets/face_detector.tflite'),
+            min_detection_confidence=config['face_detection_confidence']
         )
-        self.face_mesh = self.mp_face_mesh.FaceMesh(
-            max_num_faces=config['max_faces'],
-            min_detection_confidence=config['landmark_detection_confidence'],
-            static_image_mode=True,
-            refine_landmarks=True  # Better eye detection
+        self.face_detection = tasks_vision.FaceDetector.create_from_options(face_detector_options)
+
+        # Initialize MediaPipe Face Landmarker (tasks API)
+        face_landmarker_options = tasks_vision.FaceLandmarkerOptions(
+            base_options=tasks_python.BaseOptions(model_asset_path='assets/face_landmarker.task'),
+            num_faces=config['max_faces'],
+            min_face_detection_confidence=config['landmark_detection_confidence'],
+            output_face_blendshapes=False,
+            output_facial_transformation_matrixes=False
         )
+        self.face_mesh = tasks_vision.FaceLandmarker.create_from_options(face_landmarker_options)
         
         # Initialize OpenCV Haar cascades as fallback
         if config['use_haar_fallback']:
@@ -92,47 +97,51 @@ class FaceDetector:
             scale = 1500 / image_rgb.shape[0]
             image_rgb = cv2.resize(image_rgb, (0, 0), fx=scale, fy=scale)
 
-        height, width = image.shape[:2]
-        
+        height, width = image_rgb.shape[:2]
+
+        # Wrap image for mediapipe tasks API
+        mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=image_rgb)
+
         # First use FaceDetection to get face bounding boxes
-        face_detection_results = self.face_detection.process(image_rgb)
+        face_detection_result = self.face_detection.detect(mp_image)
         face_boxes = []
         face_scores = []
-        
-        if face_detection_results.detections:
-            for detection in face_detection_results.detections:
-                bounding_box = detection.location_data.relative_bounding_box
-                face_x = max(0, int(bounding_box.xmin * width))
-                face_y = max(0, int(bounding_box.ymin * height))
-                face_w = min(int(bounding_box.width * width), width - face_x)
-                face_h = min(int(bounding_box.height * height), height - face_y)
-                
-                if face_w > 0 and face_h > 0:  # Skip invalid boxes
+
+        if face_detection_result.detections:
+            for detection in face_detection_result.detections:
+                bbox = detection.bounding_box
+                face_x = max(0, bbox.origin_x)
+                face_y = max(0, bbox.origin_y)
+                face_w = min(bbox.width, width - face_x)
+                face_h = min(bbox.height, height - face_y)
+
+                if face_w > 0 and face_h > 0:
                     face_boxes.append((face_x, face_y, face_w, face_h))
-                    face_scores.append(detection.score[0])
-                    logger.info(f"Face detected with dimensions: {face_w}x{face_h}, confidence: {detection.score[0]:.2f}")
-        
-        # Then use FaceMesh for precise eye landmarks
-        results = self.face_mesh.process(image_rgb)
-        if not results.multi_face_landmarks:
-            logger.info("MediaPipe detection failed: no multi face landmarks")
+                    score = detection.categories[0].score if detection.categories else 1.0
+                    face_scores.append(score)
+                    logger.info(f"Face detected with dimensions: {face_w}x{face_h}, confidence: {score:.2f}")
+
+        # Then use FaceLandmarker for precise eye landmarks
+        landmark_result = self.face_mesh.detect(mp_image)
+        if not landmark_result.face_landmarks:
+            logger.info("MediaPipe detection failed: no face landmarks")
             return []
 
         eye_locations = []
-        
-        # Process each face mesh
-        for face_index, face_landmarks in enumerate(results.multi_face_landmarks):
+
+        # Process each face
+        for face_index, face_landmarks in enumerate(landmark_result.face_landmarks):
             # MediaPipe face mesh indices for precise eye landmarks
             # Using more accurate inner and outer corners for movie poster faces
             left_eye_indices = [33, 133]   # Left eye corners (inner, outer)
             right_eye_indices = [362, 263] # Right eye corners (inner, outer)
             
             # Get eye coordinates
-            left_eye = [(int(face_landmarks.landmark[idx].x * width),
-                        int(face_landmarks.landmark[idx].y * height))
+            left_eye = [(int(face_landmarks[idx].x * width),
+                        int(face_landmarks[idx].y * height))
                        for idx in left_eye_indices]
-            right_eye = [(int(face_landmarks.landmark[idx].x * width),
-                         int(face_landmarks.landmark[idx].y * height))
+            right_eye = [(int(face_landmarks[idx].x * width),
+                         int(face_landmarks[idx].y * height))
                         for idx in right_eye_indices]
             
             # Calculate eye centers and sizes
@@ -244,8 +253,8 @@ class FaceDetector:
         # Only return eye locations up to the number of real face detections 
         # plus safety margin (more lenient for movie posters)
         num_detections = 0
-        if face_detection_results.detections is not None:
-            num_detections = len(face_detection_results.detections)
+        if face_detection_result.detections is not None:
+            num_detections = len(face_detection_result.detections)
             
         max_faces = num_detections * 2 if config['movie_poster_mode'] else num_detections + 1
         max_faces = max(max_faces, 2)  # Always allow at least 2 faces

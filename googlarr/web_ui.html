@@ -275,6 +275,63 @@
             opacity: 1;
         }
 
+        .poster-status {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            padding: 4px 6px;
+            font-size: 11px;
+            font-weight: 700;
+            text-align: center;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+            z-index: 3;
+        }
+
+        .poster-status.status-original    { background: rgba(80,80,80,0.88); color: #ccc; }
+        .poster-status.status-prank-ready { background: rgba(33,150,243,0.88); color: #fff; }
+        .poster-status.status-prank-live  { background: rgba(76,175,80,0.88); color: #fff; }
+        .poster-status.status-progress    { background: rgba(255,193,7,0.88); color: #000; }
+        .poster-status.status-failed      { background: rgba(244,67,54,0.88); color: #fff; }
+        .poster-status.status-queued      { background: rgba(60,60,60,0.88); color: #888; }
+
+        .poster-status-prank-hover {
+            position: absolute;
+            bottom: 0; left: 0; right: 0;
+            padding: 4px 6px;
+            font-size: 11px;
+            font-weight: 700;
+            text-align: center;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+            z-index: 4;
+            background: rgba(255, 235, 59, 0.95);
+            color: #000;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .poster-item.has-prank:hover .poster-status { opacity: 0; transition: opacity 0.3s ease; }
+        .poster-item.has-prank:hover .poster-status-prank-hover { opacity: 1; }
+
+        .poster-placeholder {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: #555;
+            font-size: 11px;
+            gap: 6px;
+        }
+
+        .poster-placeholder-icon {
+            font-size: 28px;
+            line-height: 1;
+        }
+
         .poster-title {
             margin-top: 10px;
             font-size: 14px;
@@ -473,11 +530,21 @@
             document.getElementById('totalItems').textContent = data.items.total;
             const breakdown = document.getElementById('statusBreakdown');
             breakdown.innerHTML = '';
+            const statusLabels = {
+                'NEW': 'New',
+                'WORKING_DOWNLOAD': 'Downloading',
+                'ORIGINAL_DOWNLOADED': 'Downloaded',
+                'WORKING_PRANKIFY': 'Prankifying',
+                'PRANK_GENERATED': 'Prank Ready',
+                'PRANK_APPLIED': 'Prank Applied',
+                'FAILED': 'Failed',
+            };
             for (const [status, count] of Object.entries(data.items)) {
                 if (status !== 'total') {
+                    const label = statusLabels[status] || status;
                     breakdown.innerHTML += `
                         <div class="status-item">
-                            <span class="status-label">${status}</span>
+                            <span class="status-label">${label}</span>
                             <span class="status-value">${count}</span>
                         </div>
                     `;
@@ -553,7 +620,7 @@
             document.getElementById('loadingIndicator').style.display = 'block';
 
             const res = await fetch(
-                `${API_BASE}/library/${currentLibrary}?page=${currentPage}&limit=20`
+                `${API_BASE}/library/${encodeURIComponent(currentLibrary)}?page=${currentPage}&limit=20`
             );
             const data = await res.json();
 
@@ -561,35 +628,70 @@
             document.getElementById('libraryInfo').textContent =
                 `Showing ${data.items.length} of ${data.total} items in "${data.library}"`;
 
+            // Status badge config
+            const statusConfig = {
+                'PRANK_APPLIED':        { cls: 'status-prank-live',  label: 'Prank Live' },
+                'PRANK_GENERATED':      { cls: 'status-prank-ready', label: 'Prank Ready' },
+                'ORIGINAL_DOWNLOADED':  { cls: 'status-original',    label: 'Original' },
+                'WORKING_PRANKIFY':     { cls: 'status-progress',    label: 'Processing...' },
+                'WORKING_DOWNLOAD':     { cls: 'status-progress',    label: 'Downloading...' },
+                'FAILED':               { cls: 'status-failed',      label: 'Failed' },
+                'NEW':                  { cls: 'status-queued',      label: 'Queued' },
+            };
+            const hasPrank = s => ['PRANK_GENERATED','PRANK_APPLIED'].includes(s);
+
             // Add posters
             const grid = document.getElementById('posterGrid');
             for (const item of data.items) {
                 const div = document.createElement('div');
-                div.className = 'poster-item';
+                div.className = 'poster-item' + (hasPrank(item.status) ? ' has-prank' : '');
 
                 const wrapper = document.createElement('div');
                 wrapper.className = 'poster-wrapper';
 
-                // Original image
+                // Placeholder (shown if original fails to load)
+                const placeholder = document.createElement('div');
+                placeholder.className = 'poster-placeholder';
+                placeholder.style.display = 'none';
+                const icon = item.status === 'FAILED' ? '✕' : '⏳';
+                placeholder.innerHTML = `<div class="poster-placeholder-icon">${icon}</div>`;
+                wrapper.appendChild(placeholder);
+
+                // Always try to load original
                 const origImg = document.createElement('img');
                 origImg.className = 'poster-image original';
                 origImg.src = `${API_BASE}/posters/${item.item_id}/original`;
                 origImg.alt = item.title;
                 origImg.onerror = () => {
                     origImg.style.display = 'none';
+                    placeholder.style.display = 'flex';
                 };
-
-                // Prank image
-                const prankImg = document.createElement('img');
-                prankImg.className = 'poster-image prank';
-                prankImg.src = `${API_BASE}/posters/${item.item_id}/prank`;
-                prankImg.alt = item.title;
-                prankImg.onerror = () => {
-                    prankImg.style.display = 'none';
-                };
-
                 wrapper.appendChild(origImg);
-                wrapper.appendChild(prankImg);
+
+                // Prank image (only if generated)
+                if (hasPrank(item.status)) {
+                    const prankImg = document.createElement('img');
+                    prankImg.className = 'poster-image prank';
+                    prankImg.src = `${API_BASE}/posters/${item.item_id}/prank`;
+                    prankImg.alt = item.title;
+                    prankImg.onerror = () => { prankImg.style.display = 'none'; };
+                    wrapper.appendChild(prankImg);
+                }
+
+                // Status badge
+                const cfg = statusConfig[item.status] || { cls: 'status-queued', label: item.status };
+                const badge = document.createElement('div');
+                badge.className = `poster-status ${cfg.cls}`;
+                badge.textContent = cfg.label;
+                wrapper.appendChild(badge);
+
+                // Hover badge (shown when viewing prank)
+                if (hasPrank(item.status)) {
+                    const hoverBadge = document.createElement('div');
+                    hoverBadge.className = 'poster-status-prank-hover';
+                    hoverBadge.textContent = 'Viewing Prank';
+                    wrapper.appendChild(hoverBadge);
+                }
 
                 const title = document.createElement('div');
                 title.className = 'poster-title';

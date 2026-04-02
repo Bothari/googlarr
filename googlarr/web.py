@@ -6,7 +6,7 @@ Run alongside the daemon to provide a UI on port 8721.
 import os
 import sqlite3
 from datetime import datetime
-from flask import Flask, jsonify, send_file, request
+from flask import Flask, jsonify, send_file, request, make_response
 from croniter import croniter
 from googlarr.config import load_config
 from googlarr.prank import apply_pranks, restore_originals
@@ -14,6 +14,9 @@ from googlarr.db import reset_failed_items
 
 app = Flask(__name__)
 app.config['JSON_SORT_KEYS'] = False
+
+# App root is the parent of the googlarr package directory
+APP_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
 def get_db():
@@ -44,7 +47,9 @@ def index():
         html_path = os.path.join(os.path.dirname(__file__), 'web_ui.html')
         with open(html_path, 'r') as f:
             html = f.read()
-        return html
+        resp = make_response(html)
+        resp.headers['Cache-Control'] = 'no-store'
+        return resp
     except Exception as e:
         return f"<h1>Error loading UI: {str(e)}</h1>", 500
 
@@ -156,7 +161,7 @@ def api_poster_original(item_id):
     if not row:
         return jsonify({'error': 'Item not found'}), 404
 
-    original_path = row[0]
+    original_path = os.path.join(APP_ROOT, row[0])
     if not os.path.exists(original_path):
         return jsonify({'error': 'Original poster not found'}), 404
 
@@ -177,7 +182,7 @@ def api_poster_prank(item_id):
     if not row:
         return jsonify({'error': 'Item not found'}), 404
 
-    prank_path = row[0]
+    prank_path = os.path.join(APP_ROOT, row[0])
     if not os.path.exists(prank_path):
         return jsonify({'error': 'Prank poster not found'}), 404
 
