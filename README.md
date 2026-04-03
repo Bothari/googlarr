@@ -1,7 +1,9 @@
 # Googlarr
 
-> A chaotic and deeply unnecessary tool that applies googly eyes to your Plex posters on a schedule.  
+> A chaotic and deeply unnecessary tool that applies googly eyes to your Plex posters on a schedule.
 > You were warned.
+
+![300 with googly eyes](screenshot-300.png)
 
 ---
 
@@ -96,6 +98,8 @@ python -m googlarr.regenerate <item_id>  # Download + regenerate prank for one i
 ```
 
 ---
+
+![Plex overview with googly eyes](screenshot-plex-overview.jpeg)
 
 ## Web UI
 
